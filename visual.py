@@ -96,10 +96,13 @@ class InteractiveCumulation:
                 values[-1] += value
 
         tog_2 = pd.Series(data=values, index=dates)
-        ax = plt.subplot()
-        ax.plot(tog_2.index, tog_2.sort_index().cumsum(), picker=True)
+        fig, ax = plt.subplots(1, 1)
+        ax.step(tog_2.index, tog_2.sort_index().cumsum(), where='post', picker=True)
 
-        tog.sort_index().cumsum().plot(style="-", color="#22222222")
+        tog = tog.sort_index()
+        x = tog.index
+        y = tog.cumsum()
+        ax.step(x, y, where="post", color="#22222222")
 
         self.textwindow = None
         self.span_selector = SpanSelector(
@@ -123,11 +126,12 @@ class InteractiveCumulation:
         xdata = csum.index.map(date2num)
         params, _ = curve_fit(linear, xdata, csum.values)
 
-        ax.plot(xdata, linear(xdata, *params), 'r')
+        ax.plot(xdata, linear(xdata, *params), "r")
         ax.set_xlim(xdata.min(), xdata.max())
 
         per_month = (linear(365, *params) - linear(0, *params)) / 12
-        ax.set_title(per_month)
+        # matplotlib.figure.Figure
+        fig.text(0, 0, f"Ušetrené približne {per_month:.0f} za mesiac.", snap=True)
 
         plt.show()
 
@@ -170,6 +174,16 @@ class InteractiveCumulation:
 
 if __name__ == "__main__":
     df = get_common_dataframe()
-    df = df[df.index > datetime.datetime(2024, 6, 1, 0, 0, 0)]
+    # df = df[df.index > datetime.datetime(2024, 3, 1, 0, 0, 0)]
+    df = df[df.index > datetime.datetime(2025, 1, 1, 0, 0, 0)]
+    df = df[df.index < datetime.datetime(2026, 1, 1, 0, 0, 0)]
+    # df = df[df.index > datetime.datetime(2024, 1, 1, 0, 0, 0)]
+    # df = df[df.index < datetime.datetime(2025, 1, 1, 0, 0, 0)]
+    # df = df[df.index > datetime.datetime(2023, 1, 1, 0, 0, 0)]
+    # df = df[df.index < datetime.datetime(2024, 1, 1, 0, 0, 0)]
+    # df = df[df.index > datetime.datetime(2022, 1, 1, 0, 0, 0)]
+    # df = df[df.index < datetime.datetime(2023, 1, 1, 0, 0, 0)]
+    # df = df[df.index > datetime.datetime(2021, 1, 1, 0, 0, 0)]
+    # df = df[df.index < datetime.datetime(2022, 1, 1, 0, 0, 0)]
     InteractiveCumulation(df)
     breakpoint()
