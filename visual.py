@@ -6,9 +6,9 @@ from matplotlib.dates import num2date, date2num
 import matplotlib.pyplot as plt
 from matplotlib.widgets import SpanSelector
 import pandas as pd
-import numpy as np
 from scipy.optimize import curve_fit
 
+KURZ = 25
 
 def get_common_dataframe(folder="data/"):
     dfs = []
@@ -37,11 +37,25 @@ def get_common_dataframe(folder="data/"):
                 .fillna("nan")
                 .apply(lambda x: "\n".join(x), axis=1)
             )
-            df["info"] = df[["Zaúčtovaná částka", "info"]].apply(
+            df["account"] = 'Reiffeisen'
+            df["info"] = df[["Zaúčtovaná částka", "account", "info"]].apply(
                 lambda x: "\n".join(str(i) for i in x), axis=1
             )
             df["date"] = df["Datum zaúčtování"]
             df["amount"] = df["Zaúčtovaná částka"]
+            dfs.append(df)
+        elif file.name.startswith("account-statement"):
+            # Revolut
+            df = pd.read_csv(file)
+            df["amount"] = df["Amount"].astype(float)
+            df.loc[df["Currency"] == "EUR", "amount"] *= KURZ
+            df["date"] = df["Started Date"].map(
+                    lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+                    )
+            df["account"] = 'Revolut'
+            df["info"] = df[["Amount", "Currency", "account", "Type", "Description"]].apply(
+                lambda x: "\n".join(str(i) for i in x), axis=1
+            )
             dfs.append(df)
         else:
             # George csv file
@@ -55,7 +69,8 @@ def get_common_dataframe(folder="data/"):
                 .fillna("nan")
                 .apply(lambda x: "\n".join(x), axis=1)
             )
-            df["info"] = df[["Amount", "info"]].apply(
+            df["account"] = "George"
+            df["info"] = df[["Amount", "account", "info"]].apply(
                 lambda x: "\n".join(str(i) for i in x), axis=1
             )
             df["date"] = df["Processing Date"]
@@ -144,11 +159,12 @@ class InteractiveCumulation:
         infoseries = pd.Series(
             self.infos[(self.infos.index > xmin) & (self.infos.index < xmax)]
         )
+        infoseries.index = infoseries.index.map(lambda x: x.date())
         text = ""
         i: datetime.datetime
         text += '<table style="border: 1px solid black">\n'
         for i in infoseries.index.unique():  # type: ignore
-            text += f'<tr>\n<td colspan=6 style="padding: 6px"><h2>{i.date()}</h2></td>\n</tr>\n'
+            text += f'<tr>\n<td colspan=6 style="padding: 6px"><h2>{i}</h2></td>\n</tr>\n'
             if not isinstance(infoseries[i], pd.Series):
                 text += "<tr>\n"
                 for data in str(infoseries[i]).split("\n"):
@@ -174,9 +190,9 @@ class InteractiveCumulation:
 
 if __name__ == "__main__":
     df = get_common_dataframe()
-    # df = df[df.index > datetime.datetime(2024, 3, 1, 0, 0, 0)]
-    df = df[df.index > datetime.datetime(2025, 1, 1, 0, 0, 0)]
-    df = df[df.index < datetime.datetime(2026, 1, 1, 0, 0, 0)]
+    df = df[df.index > datetime.datetime(2024, 3, 1, 0, 0, 0)]
+    # df = df[df.index > datetime.datetime(2024, 1, 1, 0, 0, 0)]
+    # df = df[df.index < datetime.datetime(2026, 1, 1, 0, 0, 0)]
     # df = df[df.index > datetime.datetime(2024, 1, 1, 0, 0, 0)]
     # df = df[df.index < datetime.datetime(2025, 1, 1, 0, 0, 0)]
     # df = df[df.index > datetime.datetime(2023, 1, 1, 0, 0, 0)]
@@ -185,5 +201,4 @@ if __name__ == "__main__":
     # df = df[df.index < datetime.datetime(2023, 1, 1, 0, 0, 0)]
     # df = df[df.index > datetime.datetime(2021, 1, 1, 0, 0, 0)]
     # df = df[df.index < datetime.datetime(2022, 1, 1, 0, 0, 0)]
-    InteractiveCumulation(df)
-    breakpoint()
+    InteractiveCumulation(df) # type:ignore
