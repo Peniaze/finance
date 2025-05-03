@@ -1,5 +1,4 @@
 import datetime
-import pathlib
 
 import PyQt6.QtWidgets as QtWidgets
 from matplotlib.dates import num2date, date2num
@@ -8,75 +7,7 @@ from matplotlib.widgets import SpanSelector
 import pandas as pd
 from scipy.optimize import curve_fit
 
-KURZ = 25
-
-def get_common_dataframe(folder="data/"):
-    dfs = []
-    for file in pathlib.Path(folder).glob("*.csv"):
-        if file.name.startswith("Pohyby"):
-            # Reiffeisen csv file
-            df = pd.read_csv(file, encoding="latin2", sep=";")
-            df["Zaúčtovaná částka"] = (
-                df["Zaúčtovaná částka"]
-                .map(lambda x: x.replace(" ", "").replace(",", "."))
-                .astype(float)
-            )
-            df["Datum zaúčtování"] = df["Datum zaúčtování"].map(
-                lambda x: datetime.datetime.strptime(x, "%d.%m.%Y %H:%M")
-            )
-            df["info"] = (
-                df[
-                    [
-                        "Město",
-                        "Název obchodníka",
-                        "Název protiúčtu",
-                        "Zpráva",
-                        "Poznámka",
-                    ]
-                ]
-                .fillna("nan")
-                .apply(lambda x: "\n".join(x), axis=1)
-            )
-            df["account"] = 'Reiffeisen'
-            df["info"] = df[["Zaúčtovaná částka", "account", "info"]].apply(
-                lambda x: "\n".join(str(i) for i in x), axis=1
-            )
-            df["date"] = df["Datum zaúčtování"]
-            df["amount"] = df["Zaúčtovaná částka"]
-            dfs.append(df)
-        elif file.name.startswith("account-statement"):
-            # Revolut
-            df = pd.read_csv(file)
-            df["amount"] = df["Amount"].astype(float)
-            df.loc[df["Currency"] == "EUR", "amount"] *= KURZ
-            df["date"] = df["Started Date"].map(
-                    lambda x: datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
-                    )
-            df["account"] = 'Revolut'
-            df["info"] = df[["Amount", "Currency", "account", "Type", "Description"]].apply(
-                lambda x: "\n".join(str(i) for i in x), axis=1
-            )
-            dfs.append(df)
-        else:
-            # George csv file
-            df = pd.read_csv(file, encoding="utf-16")
-            df["Amount"] = df["Amount"].map(lambda x: x.replace(",", "")).astype(float)
-            df["Processing Date"] = df["Processing Date"].map(
-                lambda x: datetime.datetime.strptime(x, "%d.%m.%Y")
-            )
-            df["info"] = (
-                df[["Partner Name", "Category", "Message for recipient"]]
-                .fillna("nan")
-                .apply(lambda x: "\n".join(x), axis=1)
-            )
-            df["account"] = "George"
-            df["info"] = df[["Amount", "account", "info"]].apply(
-                lambda x: "\n".join(str(i) for i in x), axis=1
-            )
-            df["date"] = df["Processing Date"]
-            df["amount"] = df["Amount"]
-            dfs.append(df)
-    return pd.concat(dfs, axis=0).set_index("date").sort_index()
+from common import get_common_dataframe, remove_transactions_between_accounts 
 
 
 class TextWindow(QtWidgets.QWidget):
@@ -94,25 +25,11 @@ class InteractiveCumulation:
         self.infos: pd.Series = df.loc[:, "info"]
         tog = df["amount"]
 
-        # tog = pd.concat(amounts, axis=0)
-        # tog.index[0].date()
-        date_o = None
-        dates = []
-        values = []
-        i: datetime.datetime
-        for i in tog.index.sort_values().unique():  # type: ignore
-            date = i.date()
-            value = tog[i].sum()
-            if date != date_o:
-                dates.append(date)
-                date_o = date
-                values.append(value)
-            else:
-                values[-1] += value
+        # tog_2 = tog
+        tog_2 = remove_transactions_between_accounts(tog) # type: ignore
 
-        tog_2 = pd.Series(data=values, index=dates)
         fig, ax = plt.subplots(1, 1)
-        ax.step(tog_2.index, tog_2.sort_index().cumsum(), where='post', picker=True)
+        ax.step(tog_2.index, tog_2.sort_index().cumsum(), where="post", picker=True)
 
         tog = tog.sort_index()
         x = tog.index
@@ -139,7 +56,7 @@ class InteractiveCumulation:
         # datetime.date
         # pd.Index.map
         xdata = csum.index.map(date2num)
-        params, _ = curve_fit(linear, xdata, csum.values)
+        params, _ = curve_fit(linear, xdata, csum.values.flatten())
 
         ax.plot(xdata, linear(xdata, *params), "r")
         ax.set_xlim(xdata.min(), xdata.max())
@@ -164,7 +81,9 @@ class InteractiveCumulation:
         i: datetime.datetime
         text += '<table style="border: 1px solid black">\n'
         for i in infoseries.index.unique():  # type: ignore
-            text += f'<tr>\n<td colspan=6 style="padding: 6px"><h2>{i}</h2></td>\n</tr>\n'
+            text += (
+                f'<tr>\n<td colspan=6 style="padding: 6px"><h2>{i}</h2></td>\n</tr>\n'
+            )
             if not isinstance(infoseries[i], pd.Series):
                 text += "<tr>\n"
                 for data in str(infoseries[i]).split("\n"):
@@ -201,4 +120,4 @@ if __name__ == "__main__":
     # df = df[df.index < datetime.datetime(2023, 1, 1, 0, 0, 0)]
     # df = df[df.index > datetime.datetime(2021, 1, 1, 0, 0, 0)]
     # df = df[df.index < datetime.datetime(2022, 1, 1, 0, 0, 0)]
-    InteractiveCumulation(df) # type:ignore
+    InteractiveCumulation(df)  # type:ignore

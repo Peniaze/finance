@@ -1,0 +1,5 @@
+{
+    "include": ["."],
+    "venvPath": "/opt/",
+    "venv": "miniconda3"
+}
