@@ -76,27 +76,26 @@ def get_common_dataframe(folder="data/"):
     return pd.concat(dfs, axis=0).set_index("date").sort_index()
 
 
-def remove_transactions_between_accounts(amounts: pd.Series):
+def remove_transactions_between_accounts(df: pd.DataFrame):
 
-    amounts_with_dates = amounts.copy().reset_index()
-    amounts_with_dates["date"] = amounts.index.map(lambda x: x.date())
+    amounts_with_dates = df['amount'].copy().reset_index()
+    amounts_with_dates["date"] = df['amount'].index.map(lambda x: x.date())
 
     dates = amounts_with_dates["date"]
 
     indexes_to_drop = []
     for unique_date in dates.unique():
         transactions_at_date = amounts_with_dates.loc[dates == unique_date, "amount"]
-        for a, b in combinations(transactions_at_date, r=2):
-            if a == -b:
-                indexes = transactions_at_date[
-                    (transactions_at_date == a) | (transactions_at_date == b)
-                ].index
-                if transactions_at_date[indexes].sum() != 0:
-                    ...
-                print(transactions_at_date[indexes])
+        for a, b in combinations(transactions_at_date.index, r=2):
+            if transactions_at_date[a] == -transactions_at_date[b]:
+                indexes = [a, b]
+                if any(i in indexes_to_drop for i in indexes):
+                    continue
                 indexes_to_drop.extend(indexes)
 
-    result = amounts.reset_index().drop(indexes_to_drop).set_index('date', drop=True)
+    if df['amount'].reset_index(drop=True).iloc[indexes_to_drop].sum() != 0:
+        raise ValueError('Sum of removed values is not 0.')
+    result = df.reset_index().drop(indexes_to_drop).set_index('date', drop=True)
     return result
     date_o = None
     dates = []

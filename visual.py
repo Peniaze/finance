@@ -7,7 +7,7 @@ from matplotlib.widgets import SpanSelector
 import pandas as pd
 from scipy.optimize import curve_fit
 
-from common import get_common_dataframe, remove_transactions_between_accounts 
+from common import get_common_dataframe, remove_transactions_between_accounts
 
 
 class TextWindow(QtWidgets.QWidget):
@@ -22,14 +22,22 @@ class TextWindow(QtWidgets.QWidget):
 
 class InteractiveCumulation:
     def __init__(self, df: pd.DataFrame) -> None:
-        self.infos: pd.Series = df.loc[:, "info"]
         tog = df["amount"]
 
         # tog_2 = tog
-        tog_2 = remove_transactions_between_accounts(tog) # type: ignore
+        df_unique = remove_transactions_between_accounts(df)  # type: ignore
+
+        self.infos: pd.Series = df_unique.loc[:, "info"]
+
+        amounts_unique = df_unique["amount"]
 
         fig, ax = plt.subplots(1, 1)
-        ax.step(tog_2.index, tog_2.sort_index().cumsum(), where="post", picker=True)
+        ax.step(
+            amounts_unique.index,
+            amounts_unique.sort_index().cumsum(),
+            where="post",
+            picker=True,
+        )
 
         tog = tog.sort_index()
         x = tog.index
@@ -50,7 +58,7 @@ class InteractiveCumulation:
         def linear(x, a, b):
             return a * x + b
 
-        csum = tog_2.cumsum()
+        csum = amounts_unique.cumsum()
 
         # datetime.datetime
         # datetime.date
